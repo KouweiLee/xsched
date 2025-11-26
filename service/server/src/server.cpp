@@ -23,7 +23,7 @@ Server::Server(const std::string &policy_name, const std::string &port)
 
     scheduler_ = std::make_unique<LocalScheduler>(type);
     XINFO("scheduler created with policy %s", policy_name.c_str());
-
+    // for cli
     http_server_.Get("/xqueue/:handle", std::bind(&Server::GetXQueue, this,
         std::placeholders::_1, std::placeholders::_2));
     http_server_.Get("/xqueues", std::bind(&Server::GetXQueues, this,

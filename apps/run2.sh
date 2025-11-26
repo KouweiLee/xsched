@@ -1,0 +1,1 @@
+./run_yolo_with_xsched.sh --priority 0  -- python3 yolo_xsched_fixed.py image.jpg --interval 0.5

@@ -1,0 +1,4 @@
+CompileFlags:
+  Remove: [
+  ]
+  Add: [-std=c++17]

@@ -1,5 +1,8 @@
+#include <cstdint>
 #include <list>
+#include <atomic>
 
+#include "xsched/utils/xassert.h"
 #include "xsched/xqueue.h"
 #include "xsched/utils/map.h"
 #include "xsched/protocol/def.h"
@@ -48,14 +51,23 @@ CUresult XLaunchKernel(CUfunction f,
     XDEBG("XLaunchKernel(func: %p, stream: %p, grid: [%u, %u, %u], block: [%u, %u, %u], "
           "shm: %u, params: %p, extra: %p)", f, stream, gdx, gdy, gdz, bdx, bdy, bdz,
           shmem, params, extra);
-
+    // static std::atomic<uint64_t> all_stream_count(0);
+    // uint64_t all_count = all_stream_count.fetch_add(1) + 1;
+    // if (all_count % 100 == 0) {
+    //     XWARN("Launch number is %lu", all_count);
+    // }
     if (stream == nullptr) {
+        static std::atomic<uint64_t> default_stream_count(0);
+        uint64_t count = default_stream_count.fetch_add(1) + 1;
+        if (count % 100 == 0 || count <= 10) {
+            XWARN("XLaunchKernel on default stream (count: %lu), waiting for blocking XQueues. "
+                  "This kernel will NOT be scheduled by XSched!", count);
+        }
         WaitBlockingXQueues();
         auto kernel = std::make_shared<CudaKernelLaunchCommand>(
             f, gdx, gdy, gdz, bdx, bdy, bdz, shmem, params, extra, false);
         return DirectLaunch(kernel, stream);
     }
-
     auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
     auto kernel = std::make_shared<CudaKernelLaunchCommand>(
         f, gdx, gdy, gdz, bdx, bdy, bdz, shmem, params, extra, xq != nullptr);
