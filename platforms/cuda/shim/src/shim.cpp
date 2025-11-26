@@ -18,6 +18,10 @@ namespace xsched::cuda
 
 static utils::ObjectMap<CUevent, std::shared_ptr<CudaEventRecordCommand>> g_events;
 
+// This function waits for all blocking CUDA streams managed by XSched to complete their queued commands.
+// It iterates over all XQueues, identifies those associated with blocking CUDA streams (i.e., streams that are not non-blocking),
+// submits a wait-all command to each, and then waits for all these commands to finish.
+// Non-blocking streams are skipped as they do not require synchronization here.
 void WaitBlockingXQueues()
 {
     std::list<std::shared_ptr<XQueueWaitAllCommand>> wait_cmds;
@@ -25,7 +29,7 @@ void WaitBlockingXQueues()
         auto hwq = xq->GetHwQueue();
         auto cuda_q = std::dynamic_pointer_cast<CudaQueueLv1>(hwq);
         if (cuda_q == nullptr) return kXSchedErrorUnknown;
-        // does not need to wait a non-blocking stream
+        // Skip non-blocking streams, as they do not require waiting
         if (cuda_q->GetStreamFlags() & CU_STREAM_NON_BLOCKING) return kXSchedSuccess;
         auto wait_cmd = xq->SubmitWaitAll();
         if (wait_cmd == nullptr) return kXSchedErrorUnknown;

@@ -73,8 +73,8 @@ function(add_shim_lib platform_name)
         ${CMAKE_CURRENT_LIST_DIR}/shim/src/*.c
         ${CMAKE_CURRENT_LIST_DIR}/shim/src/*.cpp
     )
-    add_library(${TARGET_NAME} SHARED ${${SOURCE_NAME}})
-    add_library(XSched::${TARGET_NAME} ALIAS ${TARGET_NAME})
+    add_library(${TARGET_NAME} SHARED ${${SOURCE_NAME}}) # 生成动态链接库
+    add_library(XSched::${TARGET_NAME} ALIAS ${TARGET_NAME}) # 为动态链接库创建别名
     target_include_directories(${TARGET_NAME} PUBLIC
         $<BUILD_INTERFACE:${XSCHED_INCLUDE_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/shim/include>
@@ -106,6 +106,7 @@ function(add_shim_lib platform_name)
     install(TARGETS ${TARGET_NAME} EXPORT XSchedTargets LIBRARY DESTINATION lib)
 
     # check create softlink option and the softlink list is not empty
+    # 在output的lib下创建软链接 libcuda.so -> libshimcuda.so
     if(SHIM_SOFTLINK AND SHIM_SOFTLINKS)
         foreach(softlink ${SHIM_SOFTLINKS})
             install(CODE "

@@ -10,7 +10,8 @@ using namespace xsched::cuda;
 
 EXPORT_C_FUNC CUresult XGetProcAddress(const char *symbol, void **pfn, int cudaVersion, cuuint64_t flags);
 EXPORT_C_FUNC CUresult XGetProcAddress_v2(const char *symbol, void **pfn, int cudaVersion, cuuint64_t flags, CUdriverProcAddressQueryResult *symbolStatus);
-
+// 以下是定义和cuda.h中函数名相同的函数，但是会包装Driver层或shim层的函数。具体取决于函数的类型。 
+// 定义函数名为cuGetErrorString的函数，具体实现为调用Driver::GetErrorString函数
 DEFINE_EXPORT_C_REDIRECT_CALL(Driver::GetErrorString, CUresult, cuGetErrorString, CUresult, error, const char **, pStr);
 DEFINE_EXPORT_C_REDIRECT_CALL(Driver::GetErrorName, CUresult, cuGetErrorName, CUresult, error, const char **, pStr);
 DEFINE_EXPORT_C_REDIRECT_CALL(Driver::Init, CUresult, cuInit, unsigned int, Flags);
@@ -1040,7 +1041,7 @@ static const std::unordered_map<std::string, std::map<int, void *>> intercept_fu
     { "cuCheckpointProcessRestore"                          , {{ 12080, (void *)cuCheckpointProcessRestore                          }}},
     { "cuCheckpointProcessUnlock"                           , {{ 12080, (void *)cuCheckpointProcessUnlock                           }}},
 };
-
+// 获取symbol在libshimcuda.so中的地址，如果存在多个版本，则选择最高版本
 static inline void GetInterceptAddr(const char *symbol, void **pfn, int cuda_version)
 {
     auto name_it = intercept_funcs.find(symbol);
@@ -1053,7 +1054,7 @@ static inline void GetInterceptAddr(const char *symbol, void **pfn, int cuda_ver
         }
     }
 }
-
+// cuGetProcAddress函数的包装函数
 EXPORT_C_FUNC CUresult XGetProcAddress(const char *symbol, void **pfn, int cudaVersion, cuuint64_t flags)
 {
     XDEBG("XGetProcAddress(symbol: %s, cudaVersion: %d, flag: 0x%lx)", symbol, cudaVersion, flags);
