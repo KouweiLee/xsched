@@ -105,7 +105,7 @@ void InstrumentContext::NotifyTrapInstrumented()
     std::lock_guard<std::mutex> lock(launch_mtx_);
     trap_instrumented_ = true;
 }
-
+// 根据GPU的特性，将kernel的entry point替换为guardian的entry point
 void InstrumentContext::Instrument(std::shared_ptr<CudaKernelCommand> kernel)
 {
     CUfunction func = kernel->kFunc;

@@ -44,7 +44,7 @@ void AsyncXQueue::Submit(std::shared_ptr<HwCommand> hw_cmd)
 {
     hw_cmd->OnSubmit(shared_from_this());
     hw_cmd->SetIdx(next_hw_cmd_idx_.fetch_add(1));
-    kHwQueue->OnHwCommandSubmit(hw_cmd);
+    kHwQueue->OnHwCommandSubmit(hw_cmd); // For level2, instrument the kernel
     cmd_buf_->Enqueue(hw_cmd);
     if (hw_cmd->GetProps(kCommandPropertyBlockingSubmit)) hw_cmd->WaitUntil(kCommandStateInFlight);
 }

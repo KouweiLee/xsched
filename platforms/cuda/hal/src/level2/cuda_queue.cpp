@@ -52,7 +52,8 @@ void CudaQueueLv2::OnHwCommandSubmit(std::shared_ptr<preempt::HwCommand> hw_cmd)
     auto kernel = std::dynamic_pointer_cast<CudaKernelCommand>(hw_cmd);
     if (kernel != nullptr) instrument_manager_->Instrument(kernel);
 }
-
+// 这里之所以不直接launch，是因为v2和v3的launch，其实是作者通过逆向工程发现的GPU的特性
+// 本身CUDA官方文档是没有给出这些特性的，所以不能直接使用CUDA的API来launch
 CUresult CudaQueueLv2::DirectLaunch(std::shared_ptr<CudaKernelCommand> kernel,
                                     CUcontext ctx, CUstream stream)
 {

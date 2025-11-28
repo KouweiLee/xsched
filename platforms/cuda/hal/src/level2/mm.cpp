@@ -65,6 +65,7 @@ ResizableBuffer::~ResizableBuffer()
     CUDA_ASSERT(Driver::MemAddressFree(ptr_, VM_DEFAULT_SIZE));
 }
 
+// 扩容函数，将ResizableBuffer的虚拟内存扩容到new_size，并分配物理内存
 void ResizableBuffer::ExpandTo(size_t new_size, CUstream stream)
 {
     if (new_size <= size_) return;
