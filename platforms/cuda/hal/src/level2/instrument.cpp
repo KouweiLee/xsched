@@ -76,6 +76,7 @@ CUresult InstrumentContext::Launch(std::shared_ptr<CudaKernelCommand> kernel,
         *preempt_buf = preempt_buf_->Ptr(); // use default (empty) preempt buffer
 
         launch_mtx_.lock();
+        // 将args_buf作为放入kernel的常量内存中，使其可以在check_preempt中访问PreemptBuffer
         cuXtraSetDebuggerParams(kernel->kFunc, args_buf, sizeof(args_buf));
         CUresult ret = kernel->LaunchWrapper(stream);
         launch_mtx_.unlock();

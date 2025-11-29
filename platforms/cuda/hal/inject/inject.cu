@@ -54,12 +54,13 @@ INJECT_FUNC void check_preempt(uint32_t *preempt_buffer_addr,   // R4 @ c[0x0][0
     uint32_t *block_restore_flag = block_exit_flag + 1;
 
     if ((threadIdx.x | threadIdx.y | threadIdx.z) != 0) goto sync;
-
+    // 只有thread (0, 0, 0) 会执行下面的代码
+    // 如果没有要求退出
     if (!*global_exit_flag) {
         *block_exit_flag = 0;
         goto fence;
     }
-
+    // 如果要求退出
     nop(); // LDC R6, c[0x0][0x1890];
     nop(); // LDC R7, c[0x0][0x1894];
     *block_exit_flag = 1;

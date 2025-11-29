@@ -7,7 +7,7 @@
 #include "xsched/cuda/hal/common/cuda.h"
 
 #define VM_DEFAULT_SIZE     (1UL << 30)     // 1G
-#define BUFFER_DEFAULT_SIZE (16UL << 20)    // 16M
+#define BUFFER_DEFAULT_SIZE (64UL << 10)    // 64K (reduced from 16M, will be rounded up to granularity)
 
 namespace xsched::cuda
 {
