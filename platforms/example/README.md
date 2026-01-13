@@ -18,11 +18,13 @@ For single-header platform, just copy the header to `platforms/example/hal/inclu
 For platform with multiple headers, use `tools/autogen/merge_headers.py` to merge them into a single header.
 
 ```shell
-python3 tools/autogen/merge_headers.py /usr/include/CL/ \
+python3 tools/autogen/merge_headers.py \
+    -d /usr/include/CL/ \
     -o platforms/example/hal/include/xsched/opencl/hal/cl.h \
     -e *.hpp -e cl_dx* -e cl_d3d* -e cl_icd.h -e cl_layer.h -e cl_va_api_media_sharing_intel.h
 ```
 
+- `-d(--directory)`: Directory containing header files to merge
 - `-o(--output)`: Output file path (default is "./merged.h")
 - `-e(--exclude)`: Pattern to exclude header files (can be used multiple times, supports glob patterns like *.hpp)
 - `-I(--include-dir)`: Additional include directories to search for headers (can be used multiple times, e.g., `-I /usr/include`)
