@@ -116,17 +116,16 @@ void Server::RecvWorker()
         case kEventProcessCreate:
         {
             PID client_pid = e->Pid();
+            this->ProcessTerminate(client_pid); // to ensure no duplicate client process
             std::string client_name = std::string(XSCHED_CLIENT_CHANNEL_PREFIX)
                                     + std::to_string(client_pid);
             auto client_chan = std::make_shared<ipc::Node>(client_name.c_str(), ipc::NodeType::kSender);
             XINFO("client process " FMT_PID " connected", client_pid);
 
             chan_mtx_.lock();
-            if(client_chans_.count(client_pid) == 0) {
-                pid_waiter_->AddWait(client_pid);
-            }
             client_chans_[client_pid] = client_chan;
             chan_mtx_.unlock();
+            pid_waiter_->AddWait(client_pid);
             scheduler_->RecvEvent(e);
             break;
         }
@@ -160,7 +159,7 @@ void Server::ProcessTerminate(PID pid)
 {
     auto e = std::make_shared<ProcessDestroyEvent>(pid);
     scheduler_->RecvEvent(e);
-    CleanUpProcess(pid);
+    this->CleanUpProcess(pid);
 }
 
 void Server::SendHint(std::shared_ptr<const sched::Hint> hint)
