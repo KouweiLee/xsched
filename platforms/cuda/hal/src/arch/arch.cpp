@@ -110,6 +110,6 @@ CUresult xsched::cuda::DirectLaunch(std::shared_ptr<CudaKernelCommand> kernel, C
         return CudaQueueLv3Trap::DirectLaunch(kernel, current_ctx, stream);
     // NEW_CUDA_ARCH: New CUDA architecture support goes here
     default:
-        return CUDA_ERROR_NOT_SUPPORTED;
+        return CudaQueueLv1::DirectLaunch(kernel, stream);
     }
 }
