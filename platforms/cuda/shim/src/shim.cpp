@@ -20,6 +20,33 @@ namespace xsched::cuda
 {
 
 static utils::ObjectMap<CUevent, std::shared_ptr<CudaEventRecordCommand>> g_events;
+std::mutex g_shim_sync_mtx;
+
+std::shared_ptr<XQueue> GetXQueueForStream(CUstream stream)
+{
+    auto hwq_h = GetHwQueueHandle(stream);
+    auto xq = HwQueueManager::GetXQueue(hwq_h);
+    if (xq == nullptr) {
+        XQueueManager::AutoCreate([&](HwQueueHandle *hwq) { return CudaQueueCreate(hwq, stream); });
+        xq = HwQueueManager::GetXQueue(hwq_h);
+    }
+    return xq;
+}
+
+void ShimSyncStream(CUstream stream, std::shared_ptr<XQueue> xq)
+{
+    std::lock_guard<std::mutex> lock(g_shim_sync_mtx);
+    if (stream == nullptr) {
+        WaitBlockingXQueues();
+    } else if (xq != nullptr) {
+        auto hwq = xq->GetHwQueue();
+        auto cuda_q = std::dynamic_pointer_cast<CudaQueueLv1>(hwq);
+        if (cuda_q && !(cuda_q->GetStreamFlags() & CU_STREAM_NON_BLOCKING)) {
+            auto default_xq = HwQueueManager::GetXQueue(GetHwQueueHandle(nullptr));
+            if (default_xq) default_xq->WaitAll();
+        }
+    }
+}
 
 // This function waits for all blocking CUDA streams managed by XSched to complete their queued commands.
 // It iterates over all XQueues, identifies those associated with blocking CUDA streams (i.e., streams that are not non-blocking),
@@ -51,22 +78,15 @@ CUresult XLaunchKernel(CUfunction f,
     XDEBG("XLaunchKernel(func: %p, stream: %p, grid: [%u, %u, %u], block: [%u, %u, %u], "
           "shm: %u, params: %p, extra: %p)", f, stream, gdx, gdy, gdz, bdx, bdy, bdz,
           shmem, params, extra);
-    // static std::atomic<uint64_t> all_stream_count(0);
-    // uint64_t all_count = all_stream_count.fetch_add(1) + 1;
-    // if (all_count % 100 == 0) {
-    //     XWARN("Launch number is %lu", all_count);
-    // }
-    if (stream == nullptr) {
-        WaitBlockingXQueues();
-        auto kernel = std::make_shared<CudaKernelLaunchCommand>(
-            f, gdx, gdy, gdz, bdx, bdy, bdz, shmem, params, extra, false);
-        return DirectLaunch(kernel, stream);
-    }
-    auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
-    auto kernel = std::make_shared<CudaKernelLaunchCommand>(
-        f, gdx, gdy, gdz, bdx, bdy, bdz, shmem, params, extra, xq != nullptr);
 
-    if (xq == nullptr) return DirectLaunch(kernel, stream);
+
+    auto xq = GetXQueueForStream(stream);
+    ShimSyncStream(stream, xq);
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream);
+
+    auto kernel = std::make_shared<CudaKernelLaunchCommand>(
+        f, gdx, gdy, gdz, bdx, bdy, bdz, shmem, params, extra, true);
+
     xq->Submit(kernel);
     return CUDA_SUCCESS;
 }
@@ -77,29 +97,22 @@ CUresult XLaunchKernelEx(const CUlaunchConfig *config, CUfunction f, void **para
     if (config == nullptr) return Driver::LaunchKernelEx(config, f, params, extra);
 
     CUstream stream = config->hStream;
-
-    if (stream == nullptr) {
-        WaitBlockingXQueues();
-        auto kernel = std::make_shared<CudaKernelLaunchExCommand>(config, f, params, extra, false);
-        return DirectLaunch(kernel, stream);
-    }
+    auto xq = GetXQueueForStream(stream);
+    ShimSyncStream(stream, xq);
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream);
     
-    auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
-    auto kn = std::make_shared<CudaKernelLaunchExCommand>(config, f, params, extra, xq != nullptr);
+    auto kn = std::make_shared<CudaKernelLaunchExCommand>(config, f, params, extra, true);
 
-    if (xq == nullptr) return DirectLaunch(kn, stream);
     xq->Submit(kn);
     return CUDA_SUCCESS;
 }
 
 CUresult XLaunchHostFunc(CUstream stream, CUhostFn fn, void *data)
 {
-    if (stream == 0) {
-        WaitBlockingXQueues();
-        return Driver::LaunchHostFunc(stream, fn, data);
-    }
-    auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
-    if (xq == nullptr) return Driver::LaunchHostFunc(stream, fn, data);
+    auto xq = GetXQueueForStream(stream);
+    ShimSyncStream(stream, xq);
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream);
+
     auto hw_cmd = std::make_shared<CudaHostFuncCommand>(fn, data);
     xq->Submit(hw_cmd);
     return CUDA_SUCCESS;
@@ -122,24 +135,15 @@ CUresult XEventRecord(CUevent event, CUstream stream)
     XDEBG("XEventRecord(event: %p, stream: %p)", event, stream);
     if (event == nullptr) return Driver::EventRecord(event, stream);
 
-    CUresult result;
-    auto xevent = std::make_shared<CudaEventRecordCommand>(event);
+    auto xq = GetXQueueForStream(stream);
+    ShimSyncStream(stream, xq);
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream);
 
-    if (stream == nullptr) {
-        WaitBlockingXQueues();
-        result = Driver::EventRecord(event, stream);
-    } else {
-        auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
-        if (xq == nullptr) {
-            result = Driver::EventRecord(event, stream);
-        } else {
-            xq->Submit(xevent);
-            result = CUDA_SUCCESS;
-        }
-    }
+    auto xevent = std::make_shared<CudaEventRecordCommand>(event);
+    xq->Submit(xevent);
 
     g_events.Add(event, xevent);
-    return result;
+    return CUDA_SUCCESS;
 }
 
 CUresult XEventRecordWithFlags(CUevent event, CUstream stream, unsigned int flags)
@@ -147,24 +151,15 @@ CUresult XEventRecordWithFlags(CUevent event, CUstream stream, unsigned int flag
     XDEBG("XEventRecordWithFlags(event: %p, stream: %p, flags: %u)", event, stream, flags);
     if (event == nullptr) return Driver::EventRecordWithFlags(event, stream, flags);
 
-    CUresult result;
-    auto xevent = std::make_shared<CudaEventRecordWithFlagsCommand>(event, flags);
+    auto xq = GetXQueueForStream(stream);
+    ShimSyncStream(stream, xq);
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream);
 
-    if (stream == nullptr) {
-        WaitBlockingXQueues();
-        result = Driver::EventRecordWithFlags(event, stream, flags);
-    } else {
-        auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
-        if (xq == nullptr) {
-            result = Driver::EventRecordWithFlags(event, stream, flags);
-        } else {
-            xq->Submit(xevent);
-            result = CUDA_SUCCESS;
-        }
-    }
+    auto xevent = std::make_shared<CudaEventRecordWithFlagsCommand>(event, flags);
+    xq->Submit(xevent);
 
     g_events.Add(event, xevent);
-    return result;
+    return CUDA_SUCCESS;
 }
 
 CUresult XEventSynchronize(CUevent event)
@@ -188,23 +183,9 @@ CUresult XStreamWaitEvent(CUstream stream, CUevent event, unsigned int flags)
     // the event is not recorded yet
     if (xevent == nullptr) return Driver::StreamWaitEvent(stream, event, flags);
 
-    if (stream == nullptr) {
-        // sync a event on default stream
-        WaitBlockingXQueues();
-        xevent->Wait();
-        return Driver::StreamWaitEvent(stream, event, flags);
-    }
-
-    auto xq = HwQueueManager::GetXQueue(GetHwQueueHandle(stream));
-    if (xq == nullptr) {
-        // waiting stream is not an xqueue
-        if (xevent->GetXQueueHandle() == 0) {
-            // the event is not recorded on an xqueue
-            return Driver::StreamWaitEvent(stream, event, flags);
-        }
-        xevent->Wait();
-        return CUDA_SUCCESS;
-    }
+    auto xq = GetXQueueForStream(stream);
+    ShimSyncStream(stream, xq);
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream);
 
     auto cmd = std::make_shared<CudaEventWaitCommand>(xevent, flags);
     xq->Submit(cmd);

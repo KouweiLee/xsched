@@ -13,18 +13,17 @@ namespace xsched::cuda
 #define CUDA_SHIM_FUNC(name, cmd, ...) \
 inline CUresult X##name(FOR_EACH_PAIR_COMMA(DECLARE_PARAM, __VA_ARGS__), CUstream stream) \
 { \
-    if (stream == 0) { \
-        WaitBlockingXQueues(); \
-        return Driver::name(FOR_EACH_PAIR_COMMA(DECLARE_ARG, __VA_ARGS__), stream); \
-    } \
-    auto xq = xsched::preempt::HwQueueManager::GetXQueue(GetHwQueueHandle(stream)); \
-    if (xq == nullptr) return Driver::name(FOR_EACH_PAIR_COMMA(DECLARE_ARG, __VA_ARGS__), stream); \
+    auto xq = GetXQueueForStream(stream); \
+    ShimSyncStream(stream, xq); \
+    XASSERT(xq != nullptr, "fail to get XQueue for stream %p", stream); \
     auto hw_cmd = std::make_shared<cmd>(FOR_EACH_PAIR_COMMA(DECLARE_ARG, __VA_ARGS__)); \
     xq->Submit(hw_cmd); \
     return CUDA_SUCCESS; \
 }
 
 void WaitBlockingXQueues();
+std::shared_ptr<preempt::XQueue> GetXQueueForStream(CUstream stream);
+void ShimSyncStream(CUstream stream, std::shared_ptr<preempt::XQueue> xq);
 
 ////////////////////////////// kernel related //////////////////////////////
 CUresult XLaunchKernel(CUfunction f, unsigned int gdx, unsigned int gdy, unsigned int gdz, unsigned int bdx, unsigned int bdy, unsigned int bdz, unsigned int shmem, CUstream stream, void **params, void **extra);

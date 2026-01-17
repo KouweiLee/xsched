@@ -65,10 +65,6 @@ EXPORT_C_FUNC XResult CudaQueueCreate(HwQueueHandle *hwq, CUstream stream)
         XWARN("CudaQueueCreate failed: hwq is nullptr");
         return kXSchedErrorInvalidValue;
     }
-    if (stream == nullptr) {
-        XWARN("CudaQueueCreate failed: does not support default stream");
-        return kXSchedErrorNotSupported;
-    }
 
     HwQueueHandle hwq_h = GetHwQueueHandle(stream);
     auto res = HwQueueManager::Add(hwq_h, [&]() { return xsched::cuda::CudaQueueCreate(stream); });
