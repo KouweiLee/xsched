@@ -26,7 +26,7 @@ void KEarliestDeadlineFirstPolicy::Sched(const Status &status)
             ddls.emplace_back(DeadlineEntry{.xqueue=handle,.deadline=ddl});
             continue;
         }
-
+        // ready_time may be the creation time of xqueue, or the time when cmds are submitted to an idle xqueue
         ddl = status.second->ready_time + std::chrono::microseconds(it->second);
         ddls.emplace_back(DeadlineEntry{.xqueue=handle,.deadline=ddl});
     }

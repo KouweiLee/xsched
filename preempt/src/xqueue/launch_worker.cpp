@@ -237,6 +237,7 @@ void LaunchWorker::LaunchHwCommand(std::shared_ptr<HwCommand> hw_cmd)
     }
 
     // Launch the HwCommand.
+    // HwCallbackCommand就是自定义的launch函数
     auto callback = std::dynamic_pointer_cast<HwCallbackCommand>(hw_cmd);
     if (callback != nullptr) {
         XASSERT(callback->Launch(kHwq->GetHandle()) == kXSchedSuccess,

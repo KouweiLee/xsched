@@ -27,7 +27,9 @@ private:
 
     XQueueHandle cur_running_ = 0;
     std::chrono::system_clock::time_point cur_end_;
+    /// @brief The utilization(the proportion of total time slice) of each XQueue.
     std::map<XQueueHandle, Utilization> utils_;
+    /// @brief The total time slice of the system. (us)
     std::chrono::microseconds timeslice_ = 
         std::chrono::microseconds(TIMESLICE_DEFAULT);
 };

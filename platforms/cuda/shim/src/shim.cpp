@@ -57,12 +57,6 @@ CUresult XLaunchKernel(CUfunction f,
     //     XWARN("Launch number is %lu", all_count);
     // }
     if (stream == nullptr) {
-        static std::atomic<uint64_t> default_stream_count(0);
-        uint64_t count = default_stream_count.fetch_add(1) + 1;
-        if (count % 100 == 0 || count <= 10) {
-            XWARN("XLaunchKernel on default stream (count: %lu), waiting for blocking XQueues. "
-                  "This kernel will NOT be scheduled by XSched!", count);
-        }
         WaitBlockingXQueues();
         auto kernel = std::make_shared<CudaKernelLaunchCommand>(
             f, gdx, gdy, gdz, bdx, bdy, bdz, shmem, params, extra, false);
