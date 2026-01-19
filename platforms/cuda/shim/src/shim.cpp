@@ -45,6 +45,8 @@ void ShimSyncStream(CUstream stream, std::shared_ptr<XQueue> xq)
             auto default_xq = HwQueueManager::GetXQueue(GetHwQueueHandle(nullptr));
             if (default_xq) default_xq->WaitAll();
         }
+    } else {
+        XASSERT(false, "fail to sync stream %p", stream);
     }
 }
 
@@ -57,6 +59,9 @@ void WaitBlockingXQueues()
     std::list<std::shared_ptr<XQueueWaitAllCommand>> wait_cmds;
     XResult res = XQueueManager::ForEach([&](std::shared_ptr<XQueue> xq)->XResult {
         auto hwq = xq->GetHwQueue();
+        // Skip default stream to avoid self-serialization on host side during launch.
+        if (hwq->GetHandle() == GetHwQueueHandle(nullptr)) return kXSchedSuccess;
+
         auto cuda_q = std::dynamic_pointer_cast<CudaQueueLv1>(hwq);
         if (cuda_q == nullptr) return kXSchedErrorUnknown;
         // Skip non-blocking streams, as they do not require waiting
@@ -78,7 +83,6 @@ CUresult XLaunchKernel(CUfunction f,
     XDEBG("XLaunchKernel(func: %p, stream: %p, grid: [%u, %u, %u], block: [%u, %u, %u], "
           "shm: %u, params: %p, extra: %p)", f, stream, gdx, gdy, gdz, bdx, bdy, bdz,
           shmem, params, extra);
-
 
     auto xq = GetXQueueForStream(stream);
     ShimSyncStream(stream, xq);

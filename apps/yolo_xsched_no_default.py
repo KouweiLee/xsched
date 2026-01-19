@@ -17,6 +17,10 @@ try:
     import torch
     import torch.cuda
     
+    # Create a dedicated stream for inference
+    if torch.cuda.is_available():
+        inference_stream = torch.cuda.Stream()
+        print(f"Created dedicated CUDA stream: {inference_stream}")
 except ImportError:
     print("Warning: PyTorch not available, cannot create CUDA stream")
 
@@ -82,7 +86,13 @@ def run_inference_loop(model_path, image_path, num_iterations=0, interval=0.0, d
             
             # Run inference with explicit stream if available
             start_time = time.time()
-            results = model(current_image, device=device, verbose=False)
+            if use_stream:
+                with torch.cuda.stream(inference_stream):
+                    results = model(current_image, device=device, verbose=False)
+                # Synchronize the stream to ensure completion
+                inference_stream.synchronize()
+            else:
+                results = model(current_image, device=device, verbose=False)
             end_time = time.time()
             
             inference_time = (end_time - start_time) * 1000  # Convert to milliseconds

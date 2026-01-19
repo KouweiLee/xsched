@@ -1,3 +1,4 @@
+#include "xsched/utils/log.h"
 #include "xsched/utils/pci.h"
 #include "xsched/utils/xassert.h"
 #include "xsched/protocol/device.h"
@@ -29,9 +30,12 @@ CudaQueueLv1::CudaQueueLv1(CUstream stream): kStream(stream)
     CUDA_ASSERT(Driver::DeviceGetAttribute(&bus, CU_DEVICE_ATTRIBUTE_PCI_BUS_ID, cudevice_));
     CUDA_ASSERT(Driver::DeviceGetAttribute(&dev, CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID, cudevice_));
     xdevice_ = MakeDevice(kDeviceTypeGPU, XDeviceId(MakePciId(dom, bus, dev, 0)));
-
-    // get stream flags
-    CUDA_ASSERT(Driver::StreamGetFlags(stream, &stream_flags_));
+    if (stream == nullptr) {
+        stream_flags_ = 0;
+    } else {
+        // get stream flags
+        CUDA_ASSERT(Driver::StreamGetFlags(stream, &stream_flags_));
+    }
 
     // make sure no commands are running on stream_
     CUDA_ASSERT(Driver::StreamSynchronize(kStream));
